@@ -30,5 +30,11 @@ uv pip install -e ".[agent]"
 # Return to task directory (evaluate.py, timer.sh, templates/)
 cd /home/ben/task
 
+# Map PostTrainBench AGENT_CONFIG (e.g. "claude-opus-4-6") to litellm model ID
+MODEL_FLAG=""
+if [ -n "${AGENT_CONFIG:-}" ]; then
+    MODEL_FLAG="--model anthropic/${AGENT_CONFIG}"
+fi
+
 # Run headlessly with unlimited iterations for the 10-hour budget
-python -m agent.main --max-iterations -1 "$PROMPT"
+python -m agent.main --max-iterations -1 $MODEL_FLAG "$PROMPT"
