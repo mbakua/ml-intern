@@ -82,7 +82,7 @@ START_TIME=$(date +%s)
 # Mounts: task dir, HF cache, eval results dir, agent repo (for source)
 srun \
     --container-image="${CONTAINER_IMAGE}" \
-    --container-mounts="${JOB_DIR}:/home/ben,${HF_CACHE}:/root/.cache/huggingface,${EVAL_DIR}:/eval_dir" \
+    --container-mounts="${JOB_DIR}:/home/ben,${HF_CACHE}:/root/.cache/huggingface,${EVAL_DIR}:/eval_dir,${REPO_DIR}:/agent_repo" \
     --container-workdir="/home/ben/task" \
     --no-container-mount-home \
     --container-writable \
@@ -93,10 +93,8 @@ srun \
         export HF_TOKEN="'"${HF_TOKEN:-}"'"
         unset VIRTUAL_ENV
 
-        # Clone agent into container-local /tmp (fully isolated per job)
-        git clone --depth 1 --branch posttrain-bench \
-            https://github.com/huggingface/hf_agent.git /tmp/hf_agent
-        cd /tmp/hf_agent
+        # Install agent from mounted repo
+        cd /agent_repo
         uv sync --extra agent --no-dev --python 3.12
 
         # Run agent in the task directory
@@ -108,7 +106,7 @@ srun \
             MODEL_FLAG="--model anthropic/'"${AGENT_CONFIG}"'"
         fi
 
-        uv run --project /tmp/hf_agent python -m agent.main --max-iterations -1 $MODEL_FLAG "$PROMPT"
+        uv run --project /agent_repo python -m agent.main --max-iterations -1 $MODEL_FLAG "$PROMPT"
     ' > "${SOLVE_OUT}" 2>&1 || true
 
 END_TIME=$(date +%s)
