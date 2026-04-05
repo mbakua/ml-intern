@@ -397,7 +397,7 @@ function InlineApproval({
 // ---------------------------------------------------------------------------
 
 export default function ToolCallGroup({ tools, approveTools }: ToolCallGroupProps) {
-  const { setPanel, lockPanel, getJobUrl, getEditedScript } = useAgentStore();
+  const { setPanel, lockPanel, getJobUrl, getEditedScript, setJobStatus, getJobStatus, setToolError, getToolError } = useAgentStore();
   const researchSteps = useAgentStore(s => {
     const activeId = s.activeSessionId;
     return activeId ? (s.sessionStates[activeId]?.researchSteps) : undefined;
@@ -427,6 +427,35 @@ export default function ToolCallGroup({ tools, approveTools }: ToolCallGroupProp
       setDecisions({});
     }
   }, [pendingTools, isSubmitting]);
+
+  // Clean up stale decisions for tools that are no longer pending
+  useEffect(() => {
+    const pendingIds = new Set(pendingTools.map(t => t.toolCallId));
+    const decisionIds = Object.keys(decisions);
+    const hasStale = decisionIds.some(id => !pendingIds.has(id));
+    if (hasStale) {
+      setDecisions(prev => {
+        const cleaned = { ...prev };
+        for (const id of decisionIds) {
+          if (!pendingIds.has(id)) delete cleaned[id];
+        }
+        return cleaned;
+      });
+    }
+  }, [pendingTools, decisions]);
+
+  // Persist error states when tools error
+  useEffect(() => {
+    for (const tool of tools) {
+      const currentlyHasError = tool.state === 'output-error';
+      const persistedError = getToolError(tool.toolCallId);
+
+      // Persist error state if we detect it and haven't already
+      if (currentlyHasError && !persistedError) {
+        setToolError(tool.toolCallId, true);
+      }
+    }
+  }, [tools, setToolError, getToolError]);
 
   const { scriptLabelMap, toolDisplayMap } = useMemo(() => {
     const hfJobs = tools.filter(t => t.toolName === 'hf_jobs' && (t.input as Record<string, unknown>)?.script);
@@ -655,21 +684,37 @@ export default function ToolCallGroup({ tools, approveTools }: ToolCallGroupProp
           const localDecision = decisions[tool.toolCallId];
 
           const cancelled = isCancelledTool(tool);
+          const currentlyHasError = state === 'output-error';
+          const persistedError = getToolError(tool.toolCallId);
+
+          // Use persisted error OR current error (persisting happens in useEffect)
+          const hasError = persistedError || currentlyHasError;
+
           const displayState = isPending && localDecision
             ? (localDecision.approved ? 'input-available' : 'output-denied')
             : state;
-          const label = cancelled ? 'cancelled' : statusLabel(displayState as ToolPartState);
+          const label = cancelled ? 'cancelled'
+            : hasError ? 'error'
+            : statusLabel(displayState as ToolPartState);
 
           // Parse job metadata from hf_jobs output and store
           const jobUrlFromStore = tool.toolName === 'hf_jobs' ? getJobUrl(tool.toolCallId) : undefined;
-          const jobMetaFromOutput = tool.toolName === 'hf_jobs' && tool.state === 'output-available'
-            ? parseJobMeta(tool.output)
+          const jobStatusFromStore = tool.toolName === 'hf_jobs' ? getJobStatus(tool.toolCallId) : undefined;
+
+          const jobMetaFromOutput = tool.toolName === 'hf_jobs' && (tool.output || (tool as Record<string, unknown>).errorText)
+            ? parseJobMeta(tool.output ?? (tool as Record<string, unknown>).errorText)
             : {};
-          
-          // Combine job URL from store (available immediately) with output metadata (available at completion)
+
+          // Store job status if we just parsed it and don't have it stored yet
+          if (tool.toolName === 'hf_jobs' && jobMetaFromOutput.jobStatus && !jobStatusFromStore) {
+            setJobStatus(tool.toolCallId, jobMetaFromOutput.jobStatus);
+          }
+
+          // Combine job URL and status from store (persisted) with output metadata (freshly parsed)
+          // Prefer stored values to ensure they persist across renders
           const jobMeta = {
             jobUrl: jobUrlFromStore || jobMetaFromOutput.jobUrl,
-            jobStatus: jobMetaFromOutput.jobStatus,
+            jobStatus: jobStatusFromStore || jobMetaFromOutput.jobStatus,
           };
 
           return (
@@ -691,9 +736,11 @@ export default function ToolCallGroup({ tools, approveTools }: ToolCallGroupProp
                 <StatusIcon
                   cancelled={cancelled}
                   state={
-                    (tool.toolName === 'hf_jobs' && jobMeta.jobStatus && ['ERROR', 'FAILED', 'CANCELLED'].includes(jobMeta.jobStatus) && displayState === 'output-available')
+                    hasError
                       ? 'output-error'
-                      : displayState as ToolPartState
+                      : ((tool.toolName === 'hf_jobs' && jobMeta.jobStatus && ['ERROR', 'FAILED', 'CANCELLED'].includes(jobMeta.jobStatus))
+                        ? 'output-error'
+                        : displayState as ToolPartState)
                   }
                 />
 
@@ -724,10 +771,12 @@ export default function ToolCallGroup({ tools, approveTools }: ToolCallGroupProp
                       fontSize: '0.65rem',
                       fontWeight: 600,
                       bgcolor: cancelled ? 'rgba(255,255,255,0.05)'
-                        : displayState === 'output-error' ? 'rgba(224,90,79,0.12)'
+                        : hasError ? 'rgba(224,90,79,0.12)'
                         : displayState === 'output-denied' ? 'rgba(255,255,255,0.05)'
                         : 'var(--accent-yellow-weak)',
-                      color: cancelled ? 'var(--muted-text)' : statusColor(displayState as ToolPartState),
+                      color: cancelled ? 'var(--muted-text)'
+                        : hasError ? 'var(--accent-red)'
+                        : statusColor(displayState as ToolPartState),
                       letterSpacing: '0.03em',
                     }}
                   />

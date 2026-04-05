@@ -101,6 +101,12 @@ interface AgentStore {
   // Job URLs (tool_call_id -> job URL) for HF jobs
   jobUrls: Record<string, string>;
 
+  // Job statuses (tool_call_id -> job status) for HF jobs
+  jobStatuses: Record<string, string>;
+
+  // Tool error states (tool_call_id -> true if errored) - persisted across renders
+  toolErrors: Record<string, boolean>;
+
   // ── Per-session actions ─────────────────────────────────────────────
 
   /** Update a session's state. If it's the active session, also update flat state. */
@@ -138,6 +144,12 @@ interface AgentStore {
 
   setJobUrl: (toolCallId: string, jobUrl: string) => void;
   getJobUrl: (toolCallId: string) => string | undefined;
+
+  setJobStatus: (toolCallId: string, status: string) => void;
+  getJobStatus: (toolCallId: string) => string | undefined;
+
+  setToolError: (toolCallId: string, hasError: boolean) => void;
+  getToolError: (toolCallId: string) => boolean | undefined;
 }
 
 /**
@@ -159,6 +171,25 @@ function syncSnapshot(
   };
 }
 
+// Load persisted tool errors from localStorage
+function loadToolErrors(): Record<string, boolean> {
+  try {
+    const stored = localStorage.getItem('hf-agent-tool-errors');
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+// Save tool errors to localStorage
+function saveToolErrors(errors: Record<string, boolean>): void {
+  try {
+    localStorage.setItem('hf-agent-tool-errors', JSON.stringify(errors));
+  } catch (e) {
+    console.warn('Failed to persist tool errors:', e);
+  }
+}
+
 export const useAgentStore = create<AgentStore>()((set, get) => ({
   sessionStates: {},
   activeSessionId: null,
@@ -178,6 +209,8 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
   editedScripts: {},
   jobUrls: {},
+  jobStatuses: {},
+  toolErrors: loadToolErrors(),
 
   // ── Per-session state management ──────────────────────────────────
 
@@ -349,4 +382,26 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
   },
 
   getJobUrl: (toolCallId) => get().jobUrls[toolCallId],
+
+  // ── Job Statuses ────────────────────────────────────────────────────
+
+  setJobStatus: (toolCallId, status) => {
+    set((state) => ({
+      jobStatuses: { ...state.jobStatuses, [toolCallId]: status },
+    }));
+  },
+
+  getJobStatus: (toolCallId) => get().jobStatuses[toolCallId],
+
+  // ── Tool Errors ─────────────────────────────────────────────────────
+
+  setToolError: (toolCallId, hasError) => {
+    set((state) => {
+      const updated = { ...state.toolErrors, [toolCallId]: hasError };
+      saveToolErrors(updated);
+      return { toolErrors: updated };
+    });
+  },
+
+  getToolError: (toolCallId) => get().toolErrors[toolCallId],
 }));
