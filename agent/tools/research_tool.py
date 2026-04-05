@@ -54,7 +54,6 @@ ML moves fast — a method from 6 months ago may already be obsolete.
 - Search for **recent papers** (use `hf_papers`) to find SOTA methods, models, and datasets for the task
 - Compare what you find in docs/examples against what recent papers recommend — prefer the newer approach
 - When multiple approaches exist, identify which is SOTA and why (benchmark results, adoption, recency)
-- Flag when example code uses outdated APIs, deprecated trainers, or superseded techniques
 - Include in your findings: what is the current best model, dataset, and method for the task
 
 # Research methodology
