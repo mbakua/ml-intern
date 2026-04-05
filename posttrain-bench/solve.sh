@@ -19,13 +19,10 @@ git clone --depth 1 --branch posttrain-bench \
 
 cd "$AGENT_DIR"
 
-# Container has Python 3.10 but agent needs 3.12+
-# uv will auto-download Python 3.12
-uv venv --python 3.12 .venv
-source .venv/bin/activate
-
-# Install agent with its dependencies
-uv pip install -e ".[agent]"
+# Install agent into the system Python (3.11) which already has
+# torch, trl, vllm, flash-attn, etc. pre-installed in the Docker image.
+# This avoids creating an isolated venv that can't see those packages.
+uv pip install --system -e ".[agent]"
 
 # Return to task directory (evaluate.py, timer.sh, templates/)
 cd /home/ben/task
