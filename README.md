@@ -1,4 +1,4 @@
-# HF Agent
+# ML Agent
 
 An MLE agent CLI with MCP (Model Context Protocol) integration and built-in tool support.
 
