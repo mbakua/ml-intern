@@ -3,9 +3,21 @@ Terminal display utilities — rich-powered CLI formatting.
 """
 
 from rich.console import Console
-from rich.markdown import Markdown
+from rich.markdown import Heading, Markdown
 from rich.panel import Panel
 from rich.theme import Theme
+
+
+class _LeftHeading(Heading):
+    """Rich's default Markdown renders h1/h2 centered via Align.center.
+    Yield the styled text directly so headings stay left-aligned."""
+
+    def __rich_console__(self, console, options):
+        self.text.justify = "left"
+        yield self.text
+
+
+Markdown.elements["heading_open"] = _LeftHeading
 
 _THEME = Theme({
     "tool.name": "bold rgb(255,200,80)",
@@ -235,8 +247,13 @@ def print_tool_log(tool: str, log: str) -> None:
 
 # ── Messages ───────────────────────────────────────────────────────────
 
-def print_markdown(text: str) -> None:
-    import io, time, random
+async def print_markdown(
+    text: str,
+    cancel_event: "asyncio.Event | None" = None,
+    instant: bool = False,
+) -> None:
+    import asyncio
+    import io, random
     from rich.padding import Padding
 
     _console.print()
@@ -260,21 +277,36 @@ def print_markdown(text: str) -> None:
     lines = rendered.split("\n")
     rendered = "\n".join(line.rstrip() for line in lines)
 
-    # CRT typewriter effect — fast, with occasional glitch
-    rng = random.Random(42)
     f = _console.file
+
+    # Headless / non-interactive: dump the rendered markdown in one write.
+    if instant:
+        f.write(rendered)
+        f.write("\n")
+        f.flush()
+        return
+
+    # CRT typewriter effect — async so the event loop can service signal
+    # handlers (Ctrl+C during streaming) between characters. If cancelled
+    # mid-type, stop cleanly: write an ANSI reset so half-open color state
+    # doesn't bleed onto the "interrupted" line, and return.
+    rng = random.Random(42)
+    cancelled = False
     for ch in rendered:
+        if cancel_event is not None and cancel_event.is_set():
+            cancelled = True
+            break
         f.write(ch)
         f.flush()
         if ch == "\n":
-            time.sleep(0.002)
+            await asyncio.sleep(0.002)
         elif ch == " ":
-            time.sleep(0.002)
+            await asyncio.sleep(0.002)
         elif rng.random() < 0.03:
-            time.sleep(0.015)
+            await asyncio.sleep(0.015)
         else:
-            time.sleep(0.004)
-    f.write("\n")
+            await asyncio.sleep(0.004)
+    f.write("\033[0m\n" if cancelled else "\n")
     f.flush()
 
 
