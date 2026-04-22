@@ -182,9 +182,10 @@ async def _compact_and_notify(session: Session) -> None:
     """Run compaction and send event if context was reduced."""
     old_length = session.context_manager.context_length
     max_ctx = session.context_manager.max_context
+    threshold = int(max_ctx * session.context_manager._COMPACT_THRESHOLD_RATIO)
     logger.debug(
-        "Compaction check: context_length=%d, max_context=%d, needs_compact=%s",
-        old_length, max_ctx, old_length > max_ctx,
+        "Compaction check: context_length=%d, max_context=%d, threshold=%d, needs_compact=%s",
+        old_length, max_ctx, threshold, old_length > threshold,
     )
     tool_specs = session.tool_router.get_tool_specs_for_llm()
     await session.context_manager.compact(

@@ -15,53 +15,37 @@ from agent.context_manager.manager import ContextManager
 
 logger = logging.getLogger(__name__)
 
-# Local max-token lookup — avoids litellm.get_max_tokens() which can hang
-# on network calls for certain providers (known litellm issue).
-_MAX_TOKENS_MAP: dict[str, int] = {
-    "anthropic/claude-opus-4-6": 200_000,
-    "anthropic/claude-opus-4-5-20251101": 200_000,
-    "anthropic/claude-sonnet-4-5-20250929": 200_000,
-    "anthropic/claude-sonnet-4-20250514": 200_000,
-    "anthropic/claude-haiku-3-5-20241022": 200_000,
-    "anthropic/claude-3-5-sonnet-20241022": 200_000,
-    "anthropic/claude-3-opus-20240229": 200_000,
-}
 _DEFAULT_MAX_TOKENS = 200_000
 
 
 def _get_max_tokens_safe(model_name: str) -> int:
-    """Return the max context window for a model.
+    """Return the max input-context tokens for a model.
 
-    Anthropic/OpenAI ids hit the local table; HF router ids ask the catalog
-    (cached) for the max ``context_length`` across live providers. Falls back
-    to ``_DEFAULT_MAX_TOKENS`` if nothing is available.
+    Primary source: ``litellm.get_model_info(model)['max_input_tokens']`` —
+    LiteLLM maintains an upstream catalog that knows Claude Opus 4.6 is
+    1M, GPT-5 is 272k, Sonnet 4.5 is 200k, and so on. Strips any HF routing
+    suffix / huggingface/ prefix so tagged ids ('moonshotai/Kimi-K2.6:cheapest')
+    look up the bare model. Falls back to a conservative 200k default for
+    models not in the catalog (typically HF-router-only models).
     """
-    tokens = _MAX_TOKENS_MAP.get(model_name)
-    if tokens:
-        return tokens
+    from litellm import get_model_info
 
-    if not model_name.startswith(("anthropic/", "openai/")):
+    candidates = [model_name]
+    stripped = model_name.removeprefix("huggingface/").split(":", 1)[0]
+    if stripped != model_name:
+        candidates.append(stripped)
+    for candidate in candidates:
         try:
-            from agent.core import hf_router_catalog as cat
-
-            bare = model_name.removeprefix("huggingface/").split(":", 1)[0]
-            info = cat.lookup(bare)
-            if info and info.max_context_length:
-                return info.max_context_length
-        except Exception as e:
-            logger.warning("HF catalog lookup failed for %s: %s", model_name, e)
-
-    try:
-        from litellm import get_max_tokens
-
-        result = get_max_tokens(model_name)
-        if result and isinstance(result, int):
-            return result
-        logger.warning(
-            f"get_max_tokens returned {result} for {model_name}, using default"
-        )
-    except Exception as e:
-        logger.warning(f"get_max_tokens failed for {model_name}, using default: {e}")
+            info = get_model_info(candidate)
+            max_input = info.get("max_input_tokens") if info else None
+            if isinstance(max_input, int) and max_input > 0:
+                return max_input
+        except Exception:
+            continue
+    logger.info(
+        "No litellm.get_model_info entry for %s, falling back to %d",
+        model_name, _DEFAULT_MAX_TOKENS,
+    )
     return _DEFAULT_MAX_TOKENS
 
 

@@ -262,6 +262,10 @@ class ContextManager:
                 count += 1
         return False
 
+    # Trigger compaction at 90% of max_context so there's headroom for the
+    # next turn's prompt + response before we actually hit the ceiling.
+    _COMPACT_THRESHOLD_RATIO = 0.9
+
     async def compact(
         self,
         model_name: str,
@@ -269,7 +273,8 @@ class ContextManager:
         hf_token: str | None = None,
     ) -> None:
         """Remove old messages to keep history under target size"""
-        if (self.context_length <= self.max_context) or not self.items:
+        threshold = int(self.max_context * self._COMPACT_THRESHOLD_RATIO)
+        if self.context_length <= threshold or not self.items:
             return
 
         system_msg = (
