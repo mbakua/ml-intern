@@ -166,9 +166,9 @@ async def generate_title(
 ) -> dict:
     """Generate a short title for a chat session based on the first user message.
 
-    Always uses gpt-oss-20b via Groq on the HF router. The tab headline
-    renders as plain text, so the model is told to avoid markdown and any
-    stray formatting characters are stripped before returning.
+    Always uses Llama-3.1-8B-Instruct via Cerebras on the HF router. The tab
+    headline renders as plain text, so the model is told to avoid markdown
+    and any stray formatting characters are stripped before returning.
     """
     api_key = (
         os.environ.get("INFERENCE_TOKEN")
@@ -178,8 +178,8 @@ async def generate_title(
     try:
         response = await acompletion(
             # Double openai/ prefix: LiteLLM strips the first as its provider
-            # prefix, leaving openai/gpt-oss-20b:groq as the HF router model id.
-            model="openai/openai/gpt-oss-20b:groq",
+            # prefix, leaving the HF model id on the wire for the router.
+            model="openai/meta-llama/Llama-3.1-8B-Instruct:cerebras",
             api_base="https://router.huggingface.co/v1",
             api_key=api_key,
             messages=[
@@ -195,10 +195,7 @@ async def generate_title(
                 },
                 {"role": "user", "content": request.text[:500]},
             ],
-            # gpt-oss-20b is a reasoning model — without this it burns the
-            # whole max_tokens budget on reasoning and returns empty content.
-            extra_body={"reasoning_effort": "low"},
-            max_tokens=60,
+            max_tokens=20,
             temperature=0.3,
             timeout=10,
         )
