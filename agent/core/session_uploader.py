@@ -15,8 +15,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Token for session uploads — loaded from env var (never hardcode tokens in source)
-_SESSION_TOKEN = os.environ.get("HF_SESSION_UPLOAD_TOKEN", "")
+# Token for session uploads. Fallback chain (least-privilege first) — matches
+# backend/kpis_scheduler.py so one write-scoped token on the Space covers every
+# telemetry dataset. Never hardcode tokens in source.
+_SESSION_TOKEN = (
+    os.environ.get("HF_SESSION_UPLOAD_TOKEN")
+    or os.environ.get("HF_TOKEN")
+    or os.environ.get("HF_ADMIN_TOKEN")
+    or ""
+)
 
 
 def upload_session_as_file(
