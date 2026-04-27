@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="frontend/public/smolagents.webp" alt="smolagents logo" width="160" />
-</p>
-
 # ML Intern
 
 An ML intern that autonomously researches, writes, and ships good quality ML related code using the Hugging Face ecosystem — with deep access to docs, papers, datasets, and cloud compute.
@@ -58,6 +54,8 @@ ml-intern --no-stream "your prompt"
 
 > **Personal note:** I've found `--max-iterations 50` to be a sweet spot for most tasks — enough headroom without runaway loops. Bump it higher only for complex multi-step experiments.
 
+> **My default:** I run this with `anthropic/claude-opus-4-6` for most tasks. For quick/cheap iterations I switch to `openai/gpt-4o-mini` — noticeably faster and cheaper, though it occasionally needs more hand-holding on complex ML tasks.
+
 ## Architecture
 
 ### Component Overview
@@ -84,8 +82,5 @@ ml-intern --no-stream "your prompt"
 │  │  ┌────────────────────────────────────────┐  │  │  │
 │  │  │  Agentic Loop (max 300 iterations)     │  │  │  │
 │  │  │                                        │  │  │  │
-│  │  │  ┌──────────────────────────────────┐  │  │  │  │
-│  │  │  │ Session                          │  │  │  │  │
-│  │  │  │  ┌────────────────────────────┐  │  │  │  │  │
-│  │  │  │  │ ContextM
+│  │  │  ┌
 ```
