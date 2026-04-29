@@ -60,6 +60,11 @@ P0-class concern, before writing it up:
 - Confirm the specific behavior you're claiming. "This breaks X" must be
   grounded in either the code handling X or a test exercising X, not in
 
-<!-- Personal note: I'm using this fork to learn how structured code review works.
-     The P0/P1/P2 framework is something I want to apply to my own projects too.
-     Keeping upstream rules intact — only adding this note for my own reference. -->
+## Personal notes (fork-only)
+
+<!-- These notes are for my own reference and are not part of upstream guidance. -->
+
+- When reviewing ML training code, pay extra attention to data leakage between
+  train/val/test splits — this is easy to miss and silently inflates metrics.
+- For this fork I'm primarily studying the agent-loop and tool-calling patterns;
+  P2 findings in unrelated areas can be skipped to keep focus.
