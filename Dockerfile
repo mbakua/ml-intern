@@ -51,7 +51,7 @@ ENV HOME=/home/user \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     PATH="/app/.venv/bin:$PATH" \
-    LOG_LEVEL=INFO
+    LOG_LEVEL=DEBUG
 
 # Expose port
 EXPOSE 7860
